@@ -1,4 +1,3 @@
-
 /* See LICENSE file for license details. */
 #define _XOPEN_SOURCE 500
 #if HAVE_SHADOW_H
@@ -29,11 +28,11 @@
 #define CMD_LENGTH (500 * sizeof(char))
 
 #define POWEROFF 1
-#define TWILIO_SEND 1
+#define TWILIO_SEND 0
 #define WEBCAM_SHOT 1
 #define IMGUR_UPLOAD 0
-#define PLAY_AUDIO 1
-#define TRANSPARENT 1
+#define PLAY_AUDIO 0
+#define TRANSPARENT 0
 
 #include "imgur.h"
 #include "twilio.h"
@@ -193,7 +192,7 @@ webcam_shot(int async) {
 	char *cmd = (char *)malloc(CMD_LENGTH);
 
 	int r = snprintf(cmd, CMD_LENGTH,
-		"ffmpeg -y -loglevel quiet -f video4linux2 -i /dev/video0"
+		"ffmpeg -y -loglevel quiet -f video4linux2 -i /dev/video1"
 		" -frames:v 1 -f image2 %s/slock.jpg%s",
 		getenv("HOME"), async ? " &" : "");
 
@@ -225,7 +224,7 @@ twilio_send(const char *msg, imgur_data *idata, int async) {
 		" --data-urlencode 'From=" TWILIO_FROM "'"
 		" --data-urlencode 'To=" TWILIO_TO "'"
 		" --data-urlencode 'Body=%s'"
-		" --data-urlencode 'MediaUrl=%s' > /dev/null"
+		" --data-urlencode 'MediaUrl=%s' >> /tmp/twilio.log"
 		"%s", msg, idata ? idata->link : "", async ? " &" : "");
 
 	if (r > 0) {
@@ -331,6 +330,23 @@ imgur_upload(void) {
 	return NULL;
 #endif
 }
+
+
+static void
+
+showImage(Lock *lock) {
+  char *cmd = (char *)malloc(CMD_LENGTH);
+  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx /home/lesh/windows.png", lock->win);
+  system(cmd);
+}
+
+
+showImageFail(Lock *lock) {
+  char *cmd = (char *)malloc(CMD_LENGTH);
+  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx /home/lesh/windowsfail.png", lock->win);
+  system(cmd);
+}
+
 
 static int
 imgur_delete(imgur_data *idata) {
@@ -448,7 +464,7 @@ readpw(Display *dpy, const char *pws)
 					lock_tries++;
 
 					// Poweroff if there are more than 5 bad attempts.
-					if(lock_tries > 5) {
+					if(lock_tries > 3) {
 						// Disable alt+sysrq and crtl+alt+backspace
 						disable_kill();
 
@@ -551,13 +567,17 @@ readpw(Display *dpy, const char *pws)
 #if !TRANSPARENT
 			if(llen == 0 && len != 0) {
 				for(screen = 0; screen < nscreens; screen++) {
-					XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[1]);
-					XClearWindow(dpy, locks[screen]->win);
+                  //					XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[1]);
+                  //					XClearWindow(dpy, locks[screen]->win);
+                  showImage(locks[screen]);
+
+                    
 				}
 			} else if(llen != 0 && len == 0) {
 				for(screen = 0; screen < nscreens; screen++) {
-					XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[0]);
-					XClearWindow(dpy, locks[screen]->win);
+                  //XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[0]);
+                    //					XClearWindow(dpy, locks[screen]->win);
+                  showImageFail(locks[screen]);
 				}
 			}
 			llen = len;
@@ -567,6 +587,7 @@ readpw(Display *dpy, const char *pws)
 			XRaiseWindow(dpy, locks[screen]->win);
 	}
 }
+
 
 static void
 unlockscreen(Display *dpy, Lock *lock) {
@@ -605,11 +626,11 @@ lockscreen(Display *dpy, int screen) {
 		return NULL;
 
 	lock = malloc(sizeof(Lock));
+    
 	if(lock == NULL)
 		return NULL;
 
 	lock->screen = screen;
-
 	lock->root = RootWindow(dpy, lock->screen);
 
 #if TRANSPARENT
@@ -637,12 +658,12 @@ lockscreen(Display *dpy, int screen) {
 	Atom name_atom = XA_WM_NAME;
 	XTextProperty name_prop = { "slock", name_atom, 8, 5 };
 	XSetWMName(dpy, lock->win, &name_prop);
-
-	// Atom name_ewmh_atom = XInternAtom(dpy, "_NET_WM_NAME", False);
-	// XTextProperty name_ewmh_prop = { "slock", name_ewmh_atom, 8, 5 };
-	// XSetTextProperty(dpy, lock->win, &name_ewmh_prop, name_ewmh_atom);
-	// XSetWMName(dpy, lock->win, &name_ewmh_prop);
-
+/*
+	Atom name_ewmh_atom = XInternAtom(dpy, "_NET_WM_NAME", False);
+	XTextProperty name_ewmh_prop = { "slock", name_ewmh_atom, 8, 5 };
+	XSetTextProperty(dpy, lock->win, &name_ewmh_prop, name_ewmh_atom);
+	XSetWMName(dpy, lock->win, &name_ewmh_prop);
+*/
 	XClassHint *hint = XAllocClassHint();
 	if (hint) {
 		hint->res_name = "slock";
@@ -651,12 +672,15 @@ lockscreen(Display *dpy, int screen) {
 		XFree(hint);
 	}
 
+
 #if !TRANSPARENT
 	XAllocNamedColor(dpy, DefaultColormap(dpy, lock->screen), COLOR2, &color, &dummy);
 	lock->colors[1] = color.pixel;
 	XAllocNamedColor(dpy, DefaultColormap(dpy, lock->screen), COLOR1, &color, &dummy);
 	lock->colors[0] = color.pixel;
+
 	lock->pmap = XCreateBitmapFromData(dpy, lock->win, curs, 8, 8);
+
 	invisible = XCreatePixmapCursor(dpy, lock->pmap, lock->pmap, &color, &color, 0, 0);
 	XDefineCursor(dpy, lock->win, invisible);
 #endif
@@ -669,8 +693,11 @@ lockscreen(Display *dpy, int screen) {
 			GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess)
 #endif
 			break;
-		usleep(1000);
+      usleep(1000);
 	}
+
+    showImage(lock);
+
 	if(running && (len > 0)) {
 		for(len = 1000; len; len--) {
 			if(XGrabKeyboard(dpy, lock->root, True, GrabModeAsync, GrabModeAsync, CurrentTime)
