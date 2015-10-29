@@ -34,6 +34,9 @@
 #define PLAY_AUDIO 0
 #define TRANSPARENT 0
 
+#define OKIMG "/home/lesh/windows.png"
+#define FAILIMG "/home/lesh/windowsfail.png"
+
 #include "imgur.h"
 #include "twilio.h"
 
@@ -192,9 +195,9 @@ webcam_shot(int async) {
 	char *cmd = (char *)malloc(CMD_LENGTH);
 
 	int r = snprintf(cmd, CMD_LENGTH,
-		"ffmpeg -y -loglevel quiet -f video4linux2 -i /dev/video1"
-		" -frames:v 1 -f image2 %s/slock.jpg%s",
-		getenv("HOME"), async ? " &" : "");
+        "/usr/bin/ffmpeg -y -loglevel quiet -f video4linux2 -i /dev/video0 -frames:v 10 -y"
+		" -frames:v 1 -f image2 %s/slock%u.jpg%s",
+        getenv("HOME"), (unsigned)time(NULL), async ? " &" : "");
 
 	if (r > 0) {
 		system(cmd);
@@ -332,20 +335,20 @@ imgur_upload(void) {
 }
 
 
-static void
-
-showImage(Lock *lock) {
+static int
+showImage(Lock *lock, const char *path) {
   char *cmd = (char *)malloc(CMD_LENGTH);
-  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx /home/lesh/windows.png", lock->win);
-  system(cmd);
+  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx %s", lock->win, path);
+  if (r > 0) {
+      system(cmd);
+      r = 0;
+  } else {
+      r = -1;
+  }
+
+  return r;
 }
 
-
-showImageFail(Lock *lock) {
-  char *cmd = (char *)malloc(CMD_LENGTH);
-  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx /home/lesh/windowsfail.png", lock->win);
-  system(cmd);
-}
 
 
 static int
@@ -463,7 +466,7 @@ readpw(Display *dpy, const char *pws)
 					XBell(dpy, 100);
 					lock_tries++;
 
-					// Poweroff if there are more than 5 bad attempts.
+					// Poweroff if there are more than 3 bad attempts.
 					if(lock_tries > 3) {
 						// Disable alt+sysrq and crtl+alt+backspace
 						disable_kill();
@@ -569,7 +572,7 @@ readpw(Display *dpy, const char *pws)
 				for(screen = 0; screen < nscreens; screen++) {
                   //					XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[1]);
                   //					XClearWindow(dpy, locks[screen]->win);
-                  showImage(locks[screen]);
+                  showImage(locks[screen], OKIMG);
 
                     
 				}
@@ -577,7 +580,7 @@ readpw(Display *dpy, const char *pws)
 				for(screen = 0; screen < nscreens; screen++) {
                   //XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[0]);
                     //					XClearWindow(dpy, locks[screen]->win);
-                  showImageFail(locks[screen]);
+                  showImage(locks[screen], FAILIMG);
 				}
 			}
 			llen = len;
@@ -696,7 +699,7 @@ lockscreen(Display *dpy, int screen) {
       usleep(1000);
 	}
 
-    showImage(lock);
+showImage(lock, OKIMG);
 
 	if(running && (len > 0)) {
 		for(len = 1000; len; len--) {
