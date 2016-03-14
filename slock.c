@@ -34,8 +34,8 @@
 #define PLAY_AUDIO 0
 #define TRANSPARENT 0
 
-#define OKIMG "/home/lesh/windows.png"
-#define FAILIMG "/home/lesh/windowsfail.png"
+#define OKIMG "/home/lesh/lock.png"
+#define FAILIMG "/home/lesh/lockfail.png"
 
 #include "imgur.h"
 #include "twilio.h"
@@ -338,7 +338,7 @@ imgur_upload(void) {
 static int
 showImage(Lock *lock, const char *path) {
   char *cmd = (char *)malloc(CMD_LENGTH);
-  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -transparent-color black -window 0x%lx %s", lock->win, path);
+  int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -size 2560x1440 -transparent-color black -window 0x%lx %s", lock->win, path);
   if (r > 0) {
     system(cmd);
     r = 0;
