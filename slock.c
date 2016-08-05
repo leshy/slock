@@ -35,6 +35,7 @@
 #define TRANSPARENT 0
 
 #define OKIMG "/home/lesh/lock.png"
+#define OKIMGFLIP "/home/lesh/lockflip.png"
 #define FAILIMG "/home/lesh/lockfail.png"
 
 #include "imgur.h"
@@ -336,7 +337,8 @@ imgur_upload(void) {
 
 
 static int
-showImage(Lock *lock, const char *path) {
+
+showImage(Lock *lock, const char *path) {  
   char *cmd = (char *)malloc(CMD_LENGTH);
   int r = snprintf(cmd, CMD_LENGTH, "/usr/bin/display -size 2560x1440 -transparent-color black -window 0x%lx %s", lock->win, path);
   if (r > 0) {
@@ -424,7 +426,14 @@ readpw(Display *dpy)
   KeySym ksym;
   XEvent ev;
   imgur_data *idata = NULL;
+  Bool flip;
 
+  int flipCnt;
+
+  flipCnt = 0;
+  flip = False;
+
+  
 #if !TRANSPARENT
   len = llen = 0;
 #else
@@ -561,6 +570,19 @@ readpw(Display *dpy)
 
         ; // fall-through if we fail
       default:
+
+        if(flip == False) {
+          for(screen = 0; screen < nscreens; screen++) {
+            showImage(locks[screen], OKIMG);
+          }
+          flip = True;
+        } else {
+          for(screen = 0; screen < nscreens; screen++) {
+            showImage(locks[screen], OKIMGFLIP);
+          }
+          flip = False;
+        }
+        
         if(num && !iscntrl((int) buf[0]) && (len + num < sizeof passwd)) {
           memcpy(passwd + len, buf, num);
           len += num;
